@@ -14,7 +14,6 @@ CONTAINER_NAME = "postgres"
 
 def setup():
     xiaochen_py.run_command(f"docker rm -f {CONTAINER_NAME}")
-    # xiaochen_py.run_command(f"sudo rm -rf {DATA_DIR}")
     xiaochen_py.run_command(
         f"""
         docker run --detach \
@@ -48,8 +47,97 @@ def test():
         if filename.endswith(".yaml"):
             with open(os.path.join(anomalies_dir, filename), "r") as file:
                 data = yaml.safe_load(file)
-                print(os.path.splitext(filename)[0])
-                print(data)
+                cases = data["cases"]
+                for case in cases:
+                    run_case(case)
+
+
+def run_case(case):
+    print(f"run case: {case}")
+
+    db_config = {
+        "dbname": DB_NAME,
+        "user": DB_USER,
+        "password": "",
+        "host": "localhost",
+        "port": 5432,
+    }
+
+    # clear previous data
+    case_teardown(db_config, case["teardown"])
+
+    case_setup(db_config, case["setup"])
+    case_run(db_config, case["events"])
+    case_teardown(db_config, case["teardown"])
+
+
+def case_setup(db_config, setup_statements):
+    conn = psycopg2.connect(**db_config)
+
+    for stat in setup_statements:
+        with conn:
+            with conn.cursor() as curs:
+                curs.execute(stat)
+
+    conn.close()
+
+
+def case_run(db_config, events):
+    # collect all sessions
+    session_names = []
+    for event in events:
+        name = event["session"]
+        if name not in session_names:
+            session_names.append(name)
+
+    # collect all timestamps
+    timestamps = []
+    for event in events:
+        t = event["timestamp"]
+        if t not in timestamps:
+            timestamps.append(t)
+
+    # group events by timestamp
+    grouped_events = dict()
+
+
+    # init all sessions
+    sessions = dict()
+    for name in session_names:
+        sessions[name] = Session()
+
+    # start all sessions
+    for name, session in sessions.items():
+        session.start()
+
+    # execute all events
+    for timestamp in timestamps:
+        for event in events:
+            if event["timestamp"] == timestamp:
+                session = sessions[event["session"]]
+                session.execute(event["statement"])
+
+
+class Session:
+    def start(self):
+        pass
+
+    def execute(self, statement):
+        pass
+
+    def exit(self):
+        pass
+
+
+def case_teardown(db_config, teardown_statements):
+    conn = psycopg2.connect(**db_config)
+
+    for stat in teardown_statements:
+        with conn:
+            with conn.cursor() as curs:
+                curs.execute(stat)
+
+    conn.close()
 
 
 if __name__ == "__main__":
