@@ -1,0 +1,16 @@
+name: "Dirty Read"
+case:
+  setup: >
+    CREATE TABLE table_foo (id INT PRIMARY KEY);
+  events:
+    - time: "time-1"
+      session: "session-1"
+      statements:
+        - "BEGIN TRANSACTION"
+        - "INSERT INTO table_foo (id) VALUES (123)"
+    - time: "time-2"
+      session: "session-2"
+      statements:
+        - "SELECT COUNT(*) FROM table_foo WHERE id = 123"
+      expected:
+        - "1"
