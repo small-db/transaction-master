@@ -5,6 +5,7 @@ import time
 import xiaochen_py
 import psycopg2
 import yaml
+import threading
 from scripts import config
 from collections import defaultdict
 
@@ -120,22 +121,55 @@ def case_run(db_config, events):
 
     # execute all events
     for ts in timestamps:
-        logging.info(f"executing events at timestamp {ts}")
+        logging.info(f"==== executing events at timestamp {ts}")
         for event in grouped_events[ts]:
-            logging.info(f"executing event: {event}")
             session = sessions[event["session"]]
-            session.execute(event["statements"])
+            session.push_task(event["statements"])
+
+        for name, session in sessions.items():
+            session.wait_for_completion()
+
+    time.sleep(3)
+
+    # exit all sessions
+    for name, session in sessions.items():
+        session.exit()
 
 
 class Session:
-    def start(self):
-        pass
+    def __init__(self):
+        self.thread = None
+        self.queue = []
+        self.running = False
 
-    def execute(self, statement):
-        pass
+    def start(self):
+        # the running flag must be set before the thread starts to meet the
+        # requirement of the "run" method.
+        self.running = True
+
+        self.thread = threading.Thread(target=self.run)
+        self.thread.start()
+
+    def run(self):
+        while self.running:
+            if len(self.queue) == 0:
+                time.sleep(0.1)
+                continue
+
+            statement = self.queue.pop(0)
+            logging.info(f"executing statement: {statement}")
+
+    def push_task(self, statement):
+        self.queue.append(statement)
+
+    def wait_for_completion(self):
+        while len(self.queue) > 0:
+            time.sleep(0.1)
 
     def exit(self):
-        pass
+        self.running = False
+        if self.thread:
+            self.thread.join()
 
 
 def case_teardown(db_config, teardown_statements):
