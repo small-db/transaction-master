@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
+import logging
 import os
 import time
 import xiaochen_py
 import psycopg2
 import yaml
 from scripts import config
+from collections import defaultdict
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 DATA_DIR = os.path.join(config["DATA_ROOT"], "postgres")
 DB_NAME = "db"
@@ -98,8 +106,9 @@ def case_run(db_config, events):
             timestamps.append(t)
 
     # group events by timestamp
-    grouped_events = dict()
-
+    grouped_events = defaultdict(list)
+    for event in events:
+        grouped_events[event["timestamp"]].append(event)
 
     # init all sessions
     sessions = dict()
@@ -111,11 +120,10 @@ def case_run(db_config, events):
         session.start()
 
     # execute all events
-    for timestamp in timestamps:
-        for event in events:
-            if event["timestamp"] == timestamp:
-                session = sessions[event["session"]]
-                session.execute(event["statement"])
+    for ts in timestamps:
+        logging.info(f"executing events at timestamp {ts}")
+        for event in grouped_events[ts]:
+            session = sessions[event["session"]]
 
 
 class Session:
