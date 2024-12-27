@@ -20,6 +20,14 @@ DB_NAME = "db"
 DB_USER = "postgres"
 CONTAINER_NAME = "postgres"
 
+DB_CONFIG = {
+    "dbname": DB_NAME,
+    "user": DB_USER,
+    "password": "",
+    "host": "localhost",
+    "port": 5432,
+}
+
 
 def setup():
     xiaochen_py.run_command(f"docker rm -f {CONTAINER_NAME}", slient=True)
@@ -63,24 +71,16 @@ def test():
 
 
 def run_case(case):
-    db_config = {
-        "dbname": DB_NAME,
-        "user": DB_USER,
-        "password": "",
-        "host": "localhost",
-        "port": 5432,
-    }
-
     # clear previous data
-    case_teardown(db_config, case["teardown"])
+    case_teardown(DB_CONFIG, case["teardown"])
 
-    case_setup(db_config, case["setup"])
-    case_run(db_config, case["events"])
-    case_teardown(db_config, case["teardown"])
+    case_setup(DB_CONFIG, case["setup"])
+    case_run(DB_CONFIG, case["events"])
+    case_teardown(DB_CONFIG, case["teardown"])
 
 
-def case_setup(db_config, setup_statements):
-    conn = psycopg2.connect(**db_config)
+def case_setup(setup_statements):
+    conn = psycopg2.connect(**DB_CONFIG)
 
     for stat in setup_statements:
         with conn:
@@ -90,7 +90,7 @@ def case_setup(db_config, setup_statements):
     conn.close()
 
 
-def case_run(db_config, events):
+def case_run(events):
     # collect all sessions
     session_names = []
     for event in events:
@@ -151,6 +151,9 @@ class Session:
         self.thread.start()
 
     def run(self):
+        conn = psycopg2.connect(**DB_CONFIG)
+        curser = conn.cursor()
+
         while self.running:
             if len(self.queue) == 0:
                 time.sleep(0.1)
@@ -158,6 +161,10 @@ class Session:
 
             statement = self.queue.pop(0)
             logging.info(f"executing statement: {statement}")
+            # curser.execute(stat)
+
+        curser.close()
+        conn.close()
 
     def push_task(self, statement):
         self.queue.append(statement)
@@ -172,8 +179,8 @@ class Session:
             self.thread.join()
 
 
-def case_teardown(db_config, teardown_statements):
-    conn = psycopg2.connect(**db_config)
+def case_teardown(teardown_statements):
+    conn = psycopg2.connect(**DB_CONFIG)
 
     for stat in teardown_statements:
         with conn:
