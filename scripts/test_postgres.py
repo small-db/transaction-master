@@ -124,6 +124,7 @@ def case_run(db_config, events):
         for event in grouped_events[ts]:
             logging.info(f"executing event: {event}")
             session = sessions[event["session"]]
+            session.execute(event["statements"])
 
 
 class Session:
