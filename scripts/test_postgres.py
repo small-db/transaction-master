@@ -29,6 +29,14 @@ DB_CONFIG = {
 }
 
 
+SUPPORTED_ISOLATION_LEVELS = [
+    "read uncommitted",
+    "read committed",
+    "repeatable read",
+    "serializable",
+]
+
+
 def setup():
     xiaochen_py.run_command(f"docker rm -f {CONTAINER_NAME}", slient=True)
     xiaochen_py.run_command(
@@ -72,11 +80,22 @@ def test():
 
 def run_case(case):
     # clear previous data
-    case_teardown(DB_CONFIG, case["teardown"])
+    case_teardown(case["teardown"])
 
-    case_setup(DB_CONFIG, case["setup"])
-    case_run(DB_CONFIG, case["events"])
-    case_teardown(DB_CONFIG, case["teardown"])
+    set_isolation_level("read uncommitted")
+
+    case_setup(case["setup"])
+    case_run(case["events"])
+    case_teardown(case["teardown"])
+
+
+def set_isolation_level(level):
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    cursor.execute(
+        f"ALTER DATABASE {DB_NAME} SET default_transaction_isolation TO '{level}'"
+    )
+    conn.close()
 
 
 def case_setup(setup_statements):
@@ -161,13 +180,20 @@ class Session:
 
             statement = self.queue.pop(0)
             logging.info(f"executing statement: {statement}")
-            # curser.execute(stat)
+            sql = statement["sql"]
+            expected = statement.get("expected", None)
+            curser.execute(sql)
+            logging.info(f"status: {curser.statusmessage}")
+            if curser.statusmessage.startswith("SELECT"):
+                for record in curser.fetchall():
+                    logging.info(f"output: {record}")
 
         curser.close()
         conn.close()
 
-    def push_task(self, statement):
-        self.queue.append(statement)
+    def push_task(self, statements):
+        for stmt in statements:
+            self.queue.append(stmt)
 
     def wait_for_completion(self):
         while len(self.queue) > 0:

@@ -6,13 +6,16 @@ cases:
       - timestamp: "timestamp-1"
         session: "session-1"
         statements:
+          # - sql: "ALTER DATABASE db SET DEFAULT_TRANSACTION_ISOLATION TO 'read uncommitted'"
+          - sql: "SELECT current_setting('transaction_isolation')"
           - sql: "BEGIN TRANSACTION"
           - sql: "INSERT INTO table_foo (id) VALUES (123)"
       - timestamp: "timestamp-2"
         session: "session-2"
         statements:
+          - sql: "SELECT current_setting('transaction_isolation')"
           - sql: "SELECT COUNT(*) FROM table_foo WHERE id = 123"
-          - expected:
+            expected:
               - "1"
     teardown:
       - DROP TABLE IF EXISTS table_foo
