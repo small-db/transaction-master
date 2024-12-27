@@ -7,4 +7,3 @@ def load_config():
 
 
 config = load_config()
-print(config)

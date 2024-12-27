@@ -21,7 +21,7 @@ CONTAINER_NAME = "postgres"
 
 
 def setup():
-    xiaochen_py.run_command(f"docker rm -f {CONTAINER_NAME}")
+    xiaochen_py.run_command(f"docker rm -f {CONTAINER_NAME}", slient=True)
     xiaochen_py.run_command(
         f"""
         docker run --detach \
@@ -32,7 +32,8 @@ def setup():
             -v {DATA_DIR}:/var/lib/postgresql/data \
             postgres:17 \
             -c max_connections=1000
-        """
+        """,
+        slient=True,
     )
     wait_for_service()
 
@@ -61,8 +62,6 @@ def test():
 
 
 def run_case(case):
-    print(f"run case: {case}")
-
     db_config = {
         "dbname": DB_NAME,
         "user": DB_USER,
@@ -123,6 +122,7 @@ def case_run(db_config, events):
     for ts in timestamps:
         logging.info(f"executing events at timestamp {ts}")
         for event in grouped_events[ts]:
+            logging.info(f"executing event: {event}")
             session = sessions[event["session"]]
 
 
