@@ -79,7 +79,6 @@ def test():
     # load expected behavior
     expected_behavior_csv = "./spec/expected/postgres.csv"
     expected_behavior = read_csv_to_2d_array(expected_behavior_csv)
-    logging.info(f"Expected behavior: {expected_behavior}")
 
     # load anomalies
     anomalies_dir = "./spec/anomalies"
@@ -95,8 +94,6 @@ def test():
     # run test cases and compare with expected behavior
     pg_isolation_levels = [row[0] for row in expected_behavior[1:]]
     pg_anomalies = expected_behavior[0][1:]
-    logging.info(f"postgres isolation levels: {pg_isolation_levels}")
-    logging.info(f"Postgres anomalies: {pg_anomalies}")
 
     for isolation_level in pg_isolation_levels:
         set_isolation_level(isolation_level)
@@ -215,9 +212,7 @@ class Session:
             statement = self.queue.pop(0)
             logging.info(f"executing statement: {statement}")
             sql = statement["sql"]
-            expected = statement.get("expected", None)
             curser.execute(sql)
-            logging.info(f"status: {curser.statusmessage}")
             if curser.statusmessage.startswith("SELECT"):
                 for record in curser.fetchall():
                     logging.info(f"output: {record}")
