@@ -69,25 +69,47 @@ def wait_for_service():
 
 
 def read_csv_to_2d_array(filepath):
-    with open(filepath, mode='r') as file:
+    with open(filepath, mode="r") as file:
         reader = csv.reader(file)
         data = [row for row in reader]
     return data
 
 
 def test():
+    # load expected behavior
     expected_behavior_csv = "./spec/expected/postgres.csv"
     expected_behavior = read_csv_to_2d_array(expected_behavior_csv)
     logging.info(f"Expected behavior: {expected_behavior}")
 
-    anomalies_dir = "./anomalies"
+    # load anomalies
+    anomalies_dir = "./spec/anomalies"
+    anomalies = dict()
     for filename in os.listdir(anomalies_dir):
         if filename.endswith(".yaml"):
             with open(os.path.join(anomalies_dir, filename), "r") as file:
                 data = yaml.safe_load(file)
+                name = data["name"]
                 cases = data["cases"]
+                anomalies[name] = cases
+
+    # run test cases and compare with expected behavior
+    pg_isolation_levels = [row[0] for row in expected_behavior[1:]]
+    pg_anomalies = expected_behavior[0][1:]
+    logging.info(f"postgres isolation levels: {pg_isolation_levels}")
+    logging.info(f"Postgres anomalies: {pg_anomalies}")
+
+    for isolation_level in pg_isolation_levels:
+        set_isolation_level(isolation_level)
+        for anomaly_name in pg_anomalies:
+            logging.info(
+                f'test anomaly "{anomaly_name}" with isolation level "{isolation_level}"'
+            )
+            if anomaly_name in anomalies:
+                cases = anomalies[anomaly_name]
                 for case in cases:
                     run_case(case)
+            else:
+                logging.error(f"test cases for anomaly {anomaly_name} not found")
 
 
 def run_case(case):
