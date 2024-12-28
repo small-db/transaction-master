@@ -15,7 +15,7 @@ cases:
             anomalous_results:
               - result: 1
                 explain: "see the write action of uncommitted transaction from session-1"
-            legit_results:
+            legal_results:
               - result: 0
                 explain: "cannot see the write action of uncommitted transaction from session-1"
       - timestamp: "timestamp-3"
