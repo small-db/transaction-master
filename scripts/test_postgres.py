@@ -95,28 +95,44 @@ def test():
     pg_isolation_levels = [row[0] for row in expected_behavior[1:]]
     pg_anomalies = expected_behavior[0][1:]
 
+    # init possible anomalies
+    # key: isolation level
+    # value: list of possible anomalies
+    possible_anomalies = defaultdict(list)
+    for row in expected_behavior[1:]:
+        isolation_level = row[0]
+        for i, possibility in enumerate(row[1:]):
+            anomaly_name = pg_anomalies[i]
+            if possibility == "Possible":
+                possible_anomalies[isolation_level].append(anomaly_name)
+
     for isolation_level in pg_isolation_levels:
         set_isolation_level(isolation_level)
         for anomaly_name in pg_anomalies:
             logging.info(
                 f'test anomaly "{anomaly_name}" with isolation level "{isolation_level}"'
             )
+
+            possible = False
+            if anomaly_name in possible_anomalies[isolation_level]:
+                possible = True
+
             if anomaly_name in anomalies:
                 cases = anomalies[anomaly_name]
                 for case in cases:
-                    run_case(case)
+                    run_case(case, possible)
             else:
                 logging.error(f"test cases for anomaly {anomaly_name} not found")
 
 
-def run_case(case):
+def run_case(case, possible: bool):
     # clear previous data
     case_teardown(case["teardown"])
 
     set_isolation_level("read uncommitted")
 
     case_setup(case["setup"])
-    case_run(case["events"])
+    case_run(case["events"], possible)
     case_teardown(case["teardown"])
 
 
@@ -140,7 +156,7 @@ def case_setup(setup_statements):
     conn.close()
 
 
-def case_run(events):
+def case_run(events, possible: bool):
     # collect all sessions
     session_names = []
     for event in events:
@@ -174,7 +190,7 @@ def case_run(events):
         logging.info(f"==== executing events at timestamp {ts}")
         for event in grouped_events[ts]:
             session = sessions[event["session"]]
-            session.push_task(event["statements"])
+            session.push_task(event["statements"], possible)
 
         for name, session in sessions.items():
             session.wait_for_completion()
@@ -220,8 +236,9 @@ class Session:
         curser.close()
         conn.close()
 
-    def push_task(self, statements):
+    def push_task(self, statements, possible: bool):
         for stmt in statements:
+            stmt["possible"] = possible
             self.queue.append(stmt)
 
     def wait_for_completion(self):
