@@ -1,0 +1,5 @@
+Isolation Level, Dirty Read,Non-Repeatable Read, Phantom Read, Serialization Anomaly
+Read Uncommitted,"Allowed, but not in PG",Possible,Possible,Possible
+Read committed,Not possible,Possible,Possible,Possible
+Repeatable read	,Not possible,Not possible,"Allowed, but not in PG",Possible
+Serializable,Not possible,Not possible,Not possible,Not possible

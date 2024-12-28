@@ -6,6 +6,7 @@ import xiaochen_py
 import psycopg2
 import yaml
 import threading
+import csv
 from scripts import config
 from collections import defaultdict
 
@@ -67,7 +68,18 @@ def wait_for_service():
     conn.close()
 
 
+def read_csv_to_2d_array(filepath):
+    with open(filepath, mode='r') as file:
+        reader = csv.reader(file)
+        data = [row for row in reader]
+    return data
+
+
 def test():
+    expected_behavior_csv = "./spec/expected/postgres.csv"
+    expected_behavior = read_csv_to_2d_array(expected_behavior_csv)
+    logging.info(f"Expected behavior: {expected_behavior}")
+
     anomalies_dir = "./anomalies"
     for filename in os.listdir(anomalies_dir):
         if filename.endswith(".yaml"):
