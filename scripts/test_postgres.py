@@ -194,11 +194,18 @@ def case_run(events, possible: bool):
             session.push_task(event["statements"], possible)
 
         for name, session in sessions.items():
-            session.wait_for_completion()
+            error = session.wait_for_completion()
+            if error:
+                logging.error(f"error in session {name}: {error}")
+                exit_all_sessions(sessions)
+                raise error
 
     time.sleep(3)
 
-    # exit all sessions
+    exit_all_sessions(sessions)
+
+
+def exit_all_sessions(sessions):
     for name, session in sessions.items():
         session.exit()
 
@@ -208,6 +215,7 @@ class Session:
         self.thread = None
         self.queue = []
         self.running = False
+        self.error = None
 
     def start(self):
         # the running flag must be set before the thread starts to meet the
@@ -232,7 +240,11 @@ class Session:
             curser.execute(sql)
             if curser.statusmessage.startswith("SELECT"):
                 for record in curser.fetchall():
-                    check_result(statement, record)
+                    try:
+                        check_result(statement, record)
+                    except Exception as e:
+                        self.error = e
+                        break
                     logging.info(f"output: {record}")
 
         curser.close()
@@ -243,9 +255,12 @@ class Session:
             stmt["possible"] = possible
             self.queue.append(stmt)
 
-    def wait_for_completion(self):
+    def wait_for_completion(self) -> Exception:
         while len(self.queue) > 0:
+            if self.error:
+                return self.error
             time.sleep(0.1)
+        return self.error
 
     def exit(self):
         self.running = False
