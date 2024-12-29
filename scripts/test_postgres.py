@@ -269,16 +269,25 @@ class Session:
 
 
 def check_result(statement, record):
-    if statement["possible"]:
+    expected = statement["legal_results"][0]["result"]
+    if statement["possible"] and "anomalous_results" in statement:
         # expect "abomalous_results"
-        expected = statement["anomalous_results"]
-        got = record
-        assert got == expected, f"expected {expected}, got {got}"
-    else:
-        # expect "legal_results"
-        expected = statement["legal_results"]
-        got = record
-        assert got == expected, f"expected {expected}, got {got}"
+        expected = statement["anomalous_results"][0]["result"]
+
+    got = record
+    assert_equal(expected, got)
+
+
+def assert_equal(expected, got):
+    expected_rows = list()
+    expected_rows.append([expected])
+    got_rows = list()
+    got_rows.append(list(got))
+
+    # logging.info(f"epected: {expected_rows}, type: {type(expected_rows)}")
+    # logging.info(f"got: {got_rows}, type: {type(got_rows)}")
+
+    assert got_rows == expected_rows, f"expected {expected_rows}, got {got_rows}"
 
 
 def case_teardown(teardown_statements):

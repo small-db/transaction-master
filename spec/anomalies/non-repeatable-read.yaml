@@ -9,8 +9,8 @@ cases:
         statements:
           - sql: "BEGIN TRANSACTION"
           - sql: "SELECT COUNT(*) FROM table_foo WHERE id = 123"
-            expected:
-              - "1"
+            legal_results:
+              - result: 1
       - timestamp: "timestamp-2"
         session: "session-2"
         statements:
@@ -19,7 +19,11 @@ cases:
         session: "session-1"
         statements:
           - sql: "SELECT COUNT(*) FROM table_foo WHERE id = 123"
-            expected:
-              - "0"
+            legal_results:
+              - result: 1
+                explain: "the query result is consistent within the same transaction"
+            anomalous_results:
+              - result: 0
+                explain: "the query result is inconsistent with the previous query result within the same transaction"
     teardown:
       - DROP TABLE IF EXISTS table_foo
