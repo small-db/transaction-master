@@ -261,7 +261,9 @@ def check_result(statement, record):
         assert got == expected, f"expected {expected}, got {got}"
     else:
         # expect "legal_results"
-        raise NotImplementedError("not implemented")
+        expected = statement["legal_results"]
+        got = record
+        assert got == expected, f"expected {expected}, got {got}"
 
 
 def case_teardown(teardown_statements):
