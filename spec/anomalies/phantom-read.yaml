@@ -1,4 +1,4 @@
-name: "Non-Repeatable Read"
+name: "Phantom Read"
 cases:
   - setup:
       - CREATE TABLE table_foo (id INT PRIMARY KEY)
@@ -8,24 +8,24 @@ cases:
         session: "session-1"
         statements:
           - sql: "BEGIN TRANSACTION"
-          - sql: "SELECT COUNT(*) FROM table_foo WHERE id = 123"
+          - sql: "SELECT COUNT(*) FROM table_foo WHERE id >= 123"
             legal_results:
               - result: 1
       - timestamp: "timestamp-2"
         session: "session-2"
         statements:
           - sql: "BEGIN TRANSACTION"
-          - sql: "UPDATE table_foo SET id = 10000 WHERE id = 123"
+          - sql: "INSERT INTO table_foo (id) VALUES (124)"
           - sql: "COMMIT"
       - timestamp: "timestamp-3"
         session: "session-1"
         statements:
-          - sql: "SELECT COUNT(*) FROM table_foo WHERE id = 123"
+          - sql: "SELECT COUNT(*) FROM table_foo WHERE id >= 123"
             legal_results:
               - result: 1
                 explain: "the query result is consistent within the same transaction"
             anomalous_results:
-              - result: 0
-                explain: "the query result is inconsistent with the previous query result within the same transaction"
+              - result: 2
+                explain: "the query result is inconsistent with the previous query result within the same transaction, the new row is counted"
     teardown:
       - DROP TABLE IF EXISTS table_foo

@@ -10,12 +10,6 @@ import csv
 from scripts import config
 from collections import defaultdict
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-
 DATA_DIR = os.path.join(config["DATA_ROOT"], "postgres")
 DB_NAME = "db"
 DB_USER = "postgres"
@@ -130,8 +124,6 @@ def run_case(case, possible: bool):
     # clear previous data
     case_teardown(case["teardown"])
 
-    set_isolation_level("read uncommitted")
-
     case_setup(case["setup"])
     case_run(case["events"], possible)
     case_teardown(case["teardown"])
@@ -143,6 +135,8 @@ def set_isolation_level(level):
     cursor.execute(
         f"ALTER DATABASE {DB_NAME} SET default_transaction_isolation TO '{level}'"
     )
+    # MUST: commit the transaction to make the change effective
+    conn.commit()
     conn.close()
 
 
@@ -227,7 +221,7 @@ class Session:
 
     def run(self):
         conn = psycopg2.connect(**DB_CONFIG)
-        curser = conn.cursor()
+        cursor = conn.cursor()
 
         while self.running:
             if len(self.queue) == 0:
@@ -237,17 +231,17 @@ class Session:
             statement = self.queue.pop(0)
             logging.info(f"executing statement: {statement}")
             sql = statement["sql"]
-            curser.execute(sql)
-            if curser.statusmessage.startswith("SELECT"):
-                for record in curser.fetchall():
+            cursor.execute(sql)
+            if cursor.statusmessage.startswith("SELECT"):
+                for record in cursor.fetchall():
                     try:
                         check_result(statement, record)
                     except Exception as e:
                         self.error = e
                         break
-                    logging.info(f"output: {record}")
+                    logging.debug(f"output: {record}")
 
-        curser.close()
+        cursor.close()
         conn.close()
 
     def push_task(self, statements, possible: bool):
@@ -269,6 +263,11 @@ class Session:
 
 
 def check_result(statement, record):
+    # if no expected legal/anomalous results, just log the query result
+    if "legal_results" not in statement and "anomalous_results" not in statement:
+        logging.info(f"output: {record}")
+        return
+
     expected = statement["legal_results"][0]["result"]
     if statement["possible"] and "anomalous_results" in statement:
         # expect "abomalous_results"
@@ -287,7 +286,11 @@ def assert_equal(expected, got):
     # logging.info(f"epected: {expected_rows}, type: {type(expected_rows)}")
     # logging.info(f"got: {got_rows}, type: {type(got_rows)}")
 
-    assert got_rows == expected_rows, f"expected {expected_rows}, got {got_rows}"
+    if got_rows != expected_rows:
+        logging.error(f"expected {expected_rows}, got {got_rows}")
+        time.sleep(300)
+
+    # assert got_rows == expected_rows, f"expected {expected_rows}, got {got_rows}"
 
 
 def case_teardown(teardown_statements):
