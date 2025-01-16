@@ -29,5 +29,22 @@ cases:
         session: "session-2"
         statements:
           - sql: "INSERT INTO mytab VALUES (1, 30)"
+      - timestamp: "timestamp-3"
+        session: "session-1"
+        statements:
+          - sql: "COMMIT"
+            legal_results:
+              - error: null
+                explain: "TODO"
+      - timestamp: "timestamp-4"
+        session: "session-2"
+        statements:
+          - sql: "COMMIT"
+            legal_results:
+              - error: "could not serialize access due to read/write dependencies among transactions"
+                explain: "these transactions are not serializable, since they write to each other's read set, the workaround is 1) make one of them read-only, or 2) retry the transaction in case of serialization failure"
+            anomalous_results:
+              - error: null
+                explain: "these transactions suceed when running without serialization checks"
     teardown:
       - DROP TABLE IF EXISTS mytab

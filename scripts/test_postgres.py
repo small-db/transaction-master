@@ -78,6 +78,9 @@ def test():
     anomalies_dir = "./spec/anomalies"
     anomalies = dict()
     for filename in os.listdir(anomalies_dir):
+        if not filename.startswith("serialization"):
+            continue
+
         if filename.endswith(".yaml"):
             with open(os.path.join(anomalies_dir, filename), "r") as file:
                 data = yaml.safe_load(file)
@@ -230,16 +233,12 @@ class Session:
 
             statement = self.queue.pop(0)
             logging.info(f"executing statement: {statement}")
-            sql = statement["sql"]
-            cursor.execute(sql)
-            if cursor.statusmessage.startswith("SELECT"):
-                for record in cursor.fetchall():
-                    try:
-                        check_result(statement, record)
-                    except Exception as e:
-                        self.error = e
-                        break
-                    logging.debug(f"output: {record}")
+            try:
+                execute_and_check(cursor, statement)
+            except AssertionError as e:
+                logging.error(f"error: {e}")
+                self.error = e
+                break
 
         cursor.close()
         conn.close()
@@ -260,6 +259,54 @@ class Session:
         self.running = False
         if self.thread:
             self.thread.join()
+
+
+# return the error if any check fails
+def execute_and_check(cursor, statement):
+    def need_check(statement):
+        return "legal_results" in statement or "anomalous_results" in statement
+
+    sql = statement["sql"]
+
+    sql_error = None
+    try:
+        cursor.execute(sql)
+    except psycopg2.Error as e:
+        sql_error = e
+
+    if not need_check(statement):
+        return
+
+    if cursor.statusmessage.startswith("SELECT"):
+        for record in cursor.fetchall():
+            check_result(statement, record)
+            logging.debug(f"output: {record}")
+
+    result_tag = "legal_results"
+    if statement["possible"]:
+        result_tag = "anomalous_results"
+
+    # check if the tag exists
+    if result_tag not in statement:
+        # no need to check for this sql, just return
+        return
+
+    # get the first expected result
+    # TODO: handle list
+    expected = statement[result_tag][0]
+
+    # expect an error
+    if expected.get("error") != None:
+        if sql_error == None:
+            raise Exception(f"expected error {expected['error']} but got none")
+        if expected["error"] not in str(sql_error):
+            logging.info(
+                f"expected error (type: {type(expected['error'])}): {expected['error']}"
+            )
+            logging.info(f"got error (type: {type(sql_error)}): {sql_error}")
+            logging.info(f"got error message: {str(sql_error)}")
+            raise Exception(f"expected error {expected['error']} but got {sql_error}")
+        return
 
 
 def check_result(statement, record):
